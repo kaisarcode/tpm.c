@@ -137,17 +137,39 @@ kc_tpm_close(t);
 
 ## Build
 
-| Target | Description |
-| :----- | :---------- |
-| `make` (default) | Build for native host arch/platform |
-| `make all` | Build all cross-compilation targets |
-| `make <arch>/<platform>` | Build specific target (e.g. `x86_64/linux`, `x86_64/windows`) |
-| `make test` | Run `sh test.sh` |
-| `make clean` | Remove `.build/` |
+Compiled artifacts are generated under `bin/{arch}/{platform}/` for the host
+architecture running the build.
 
-Artifacts at `bin/{arch}/{platform}/`.
+```bash
+make clean && make
+```
 
-Requires CMake 3.14+ and Ninja.
+## Multiarch Builds
+
+The project is prepared to build artifacts for multiple architectures under
+`bin/{arch}/{platform}/`. A plain `make` builds only the current host
+architecture, while the targets below build the full matrix or a specific
+target.
+
+```bash
+make all
+make x86_64/linux
+make x86_64/windows
+make i686/linux
+make i686/windows
+make aarch64/linux
+make aarch64/android
+make armv7/linux
+make armv7/android
+make armv7hf/linux
+make riscv64/linux
+make powerpc64le/linux
+make mips/linux
+make mipsel/linux
+make mips64el/linux
+make s390x/linux
+make loongarch64/linux
+```
 
 ---
 
@@ -160,6 +182,12 @@ Requires CMake 3.14+ and Ninja.
 
 ---
 
-## License
+**Author:** KaisarCode
 
-GNU General Public License v3.0
+**Email:** <kaisarcode@gmail.com>
+
+**Website:** [https://kaisarcode.com](https://kaisarcode.com)
+
+**License:** [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html)
+
+© 2026 KaisarCode
