@@ -173,15 +173,6 @@ make loongarch64/linux
 
 ---
 
-## Algorithm
-
-1. **Normalize**: lowercase A–Z, collapse whitespace runs to single spaces, trim.
-2. **Extract**: slide a window of `n` bytes over the text to collect n-grams.
-3. **Profile**: count each distinct n-gram (deduplicated frequency table).
-4. **Score**: for each input n-gram, compute a smoothed log-probability against the map profile, average them, and apply a sigmoid squash to [0, 1].
-
----
-
 **Author:** KaisarCode
 
 **Email:** <kaisarcode@gmail.com>
