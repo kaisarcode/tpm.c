@@ -13,7 +13,7 @@ to 1.0 (very similar).
 Create a map file with Python code:
 
 ```bash
-cat > python.map <<'EOF'
+cat > python.map <<EOF
 def hello():
     print("hello world")
 ```
@@ -34,13 +34,13 @@ matching vs mismatching profiles.
 **Natural language - English vs Spanish:**
 
 ```
-cat > english.map <<'EOF'
+cat > english.map <<EOF
 The quick brown fox jumps over the lazy dog.
 Pack my box with five dozen liquor jugs.
 The five boxing wizards jump quickly.
 EOF
 
-cat > spanish.map <<'EOF'
+cat > spanish.map <<EOF
 El zorro marron salta sobre el perro perezoso.
 Los exploradores descubrieron una nueva especie.
 Las civilizaciones antiguas construyeron estructuras magnificas.
