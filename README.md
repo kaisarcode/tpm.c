@@ -1,4 +1,4 @@
-# tpm.c — Text Profile Matcher
+# tpm.c - Text Profile Matcher
 
 `tpm.c` is a C library and CLI for scoring input text against a reference text profile using character n-gram matching. Given a map file of representative text samples, it builds an n-gram frequency profile and computes a similarity score in [0.0, 1.0] for arbitrary input text.
 
