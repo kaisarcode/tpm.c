@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define KC_TPM_VERSION "0.1.0"
+#define KC_TPM_VERSION "1.0.0"
 
 /**
  * Read a file into a dynamically allocated buffer.
