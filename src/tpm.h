@@ -21,11 +21,30 @@ typedef struct kc_tpm kc_tpm_t;
 #define KC_TPM_OK      0
 #define KC_TPM_ERROR  -1
 
+typedef struct {
+    int reserved;
+} kc_tpm_options_t;
+
+typedef void (*kc_tpm_signal_callback_t)(kc_tpm_t *tpm);
+
+kc_tpm_options_t kc_tpm_options_default(void);
+void kc_tpm_options_load_env(kc_tpm_options_t *opts);
+void kc_tpm_options_free(kc_tpm_options_t *opts);
+
+int kc_tpm_on_signal(kc_tpm_t *tpm, int sig, kc_tpm_signal_callback_t cb);
+int kc_tpm_raise_signal(kc_tpm_t *tpm, int sig);
+int kc_tpm_listen_signals(kc_tpm_t *tpm);
+int kc_tpm_listen_signal(kc_tpm_t *tpm, int sig_id);
+void kc_tpm_signal_listener(int sig);
+
 /**
  * Allocate and initialize a new tpm context.
- * @return Context pointer or NULL on failure.
+ * Prepares one inference context. Must be paired with kc_tpm_close().
+ * @param out Pointer to receive the context pointer.
+ * @param opts Options.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
-kc_tpm_t *kc_tpm_open(void);
+int kc_tpm_open(kc_tpm_t **out, const kc_tpm_options_t *opts);
 
 /**
  * Build an n-gram profile from map text.
@@ -47,9 +66,9 @@ double kc_tpm_score(kc_tpm_t *tpm, const char *input_text);
 /**
  * Release a tpm context.
  * @param tpm Context pointer.
- * @return None.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
-void kc_tpm_close(kc_tpm_t *tpm);
+int kc_tpm_close(kc_tpm_t *tpm);
 
 #ifdef __cplusplus
 }

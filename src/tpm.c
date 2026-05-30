@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define KC_TPM_VERSION "1.0.0"
+#define KC_TPM_VERSION "1.1.0"
 
 /**
  * Read a file into a dynamically allocated buffer.
@@ -245,23 +245,35 @@ int main(int argc, char **argv) {
     }
 
     if (!stdin_text || !*stdin_text) {
-        printf("0.000000\n");
+        puts("0.000000");
         free(map_text);
         free(stdin_text);
         return 0;
     }
 
-    kc_tpm_t *tpm = kc_tpm_open();
-    if (!tpm) {
-        fprintf(stderr, "tpm: out of memory\n");
+    kc_tpm_options_t opts = kc_tpm_options_default();
+    kc_tpm_t *tpm = NULL;
+
+    kc_tpm_options_load_env(&opts);
+
+    if (kc_tpm_open(&tpm, &opts) != KC_TPM_OK) {
+        fprintf(stderr, "tpm: initialization failed\n");
+        kc_tpm_options_free(&opts);
         free(map_text);
         free(stdin_text);
         return 1;
     }
 
+    kc_tpm_listen_signals(tpm);
+#ifndef _WIN32
+    kc_tpm_listen_signal(tpm, 2);
+    kc_tpm_listen_signal(tpm, 15);
+#endif
+
     if (kc_tpm_build(tpm, map_text, ngram_size) != KC_TPM_OK) {
         fprintf(stderr, "tpm: failed to build profile\n");
         kc_tpm_close(tpm);
+        kc_tpm_options_free(&opts);
         free(map_text);
         free(stdin_text);
         return 1;
@@ -271,6 +283,7 @@ int main(int argc, char **argv) {
     printf("%.6f\n", score);
 
     kc_tpm_close(tpm);
+    kc_tpm_options_free(&opts);
     free(map_text);
     free(stdin_text);
     return 0;

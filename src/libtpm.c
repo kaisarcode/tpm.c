@@ -7,16 +7,46 @@
  * License: https://www.gnu.org/licenses/gpl-3.0.html
  */
 
+#ifndef _WIN32
+#define _POSIX_C_SOURCE 200809L
+#include <signal.h>
+#endif
+
 #include "tpm.h"
 
 #include <ctype.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 #define KC_TPM_MAX_GRAMS 8192
 #define KC_TPM_RAW_MAX   16384
 #define KC_TPM_NG_MAX    8
+
+typedef enum {
+    KC_ENV_TYPE_INT,
+    KC_ENV_TYPE_FLOAT,
+    KC_ENV_TYPE_STR
+} kc_env_type_t;
+
+typedef struct {
+    const char *env_var;
+    size_t offset;
+    kc_env_type_t type;
+} kc_env_map_t;
+
+static const kc_env_map_t env_config_table[] = {
+    { NULL, 0, KC_ENV_TYPE_INT }
+};
+static const int env_config_table_n = 0;
+
+typedef struct {
+    int sig;
+    kc_tpm_signal_callback_t cb;
+} kc_tpm_signal_entry_t;
+
+static kc_tpm_t *g_signal_ctx = NULL;
 
 typedef struct {
     char gram[12];
@@ -28,6 +58,11 @@ struct kc_tpm {
     int profile_size;
     long total;
     int ngram_size;
+
+    kc_tpm_options_t opts;
+    kc_tpm_signal_entry_t *signal_handlers;
+    int n_signal_handlers;
+    int signal_handlers_capacity;
 };
 
 /**
@@ -93,8 +128,8 @@ static int kc_tpm_raw_cmp(const void *a, const void *b) {
 }
 
 /**
- * Build an n-gram profile matching the kc-tpm shell pipeline:
- * extract raw n-grams → sort → uniq -c → strip leading/trailing spaces.
+ * Build an n-gram profile: extract raw n-grams, sort, uniq count,
+ * strip leading/trailing spaces.
  *
  * This replicates sort|uniq -c which groups by RAW bytes, then strips spaces
  * (as the shell's read -r strips IFS whitespace), potentially producing
@@ -191,10 +226,19 @@ static int kc_tpm_grams(
 
 /**
  * Allocate and initialize a new tpm context.
- * @return Context pointer or NULL on failure.
+ * Prepares one inference context.
+ * @param out Pointer to receive the context pointer.
+ * @param opts Options.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
-kc_tpm_t *kc_tpm_open(void) {
-    return (kc_tpm_t *)calloc(1, sizeof(kc_tpm_t));
+int kc_tpm_open(kc_tpm_t **out, const kc_tpm_options_t *opts) {
+    kc_tpm_t *tpm;
+    if (!out || !opts) return KC_TPM_ERROR;
+    tpm = (kc_tpm_t *)calloc(1, sizeof(kc_tpm_t));
+    if (!tpm) return KC_TPM_ERROR;
+    tpm->opts = *opts;
+    *out = tpm;
+    return KC_TPM_OK;
 }
 
 /**
@@ -304,8 +348,167 @@ double kc_tpm_score(kc_tpm_t *tpm, const char *input_text) {
 /**
  * Release a tpm context.
  * @param tpm Context pointer.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_close(kc_tpm_t *tpm) {
+    if (!tpm) return KC_TPM_ERROR;
+    kc_tpm_options_free(&tpm->opts);
+    free(tpm->signal_handlers);
+    free(tpm);
+    return KC_TPM_OK;
+}
+
+/**
+ * Create an options struct initialized with default values.
+ * @param none Unused.
+ * @return Default-initialized options.
+ */
+kc_tpm_options_t kc_tpm_options_default(void) {
+    kc_tpm_options_t opts;
+    memset(&opts, 0, sizeof(opts));
+    return opts;
+}
+
+/**
+ * Load configuration from environment variables.
+ * @param opts Options to update.
  * @return None.
  */
-void kc_tpm_close(kc_tpm_t *tpm) {
-    free(tpm);
+void kc_tpm_options_load_env(kc_tpm_options_t *opts) {
+    int i;
+    if (!opts) return;
+    for (i = 0; i < env_config_table_n; i++) {
+        const char *val = getenv(env_config_table[i].env_var);
+        char *end;
+        if (!val) continue;
+        switch (env_config_table[i].type) {
+            case KC_ENV_TYPE_INT: {
+                long v = strtol(val, &end, 10);
+                if (end != val && *end == '\0') {
+                    *(int *)((char *)opts + env_config_table[i].offset) = (int)v;
+                }
+                break;
+            }
+            case KC_ENV_TYPE_FLOAT: {
+                float v = strtof(val, &end);
+                if (end != val && *end == '\0') {
+                    *(float *)((char *)opts + env_config_table[i].offset) = v;
+                }
+                break;
+            }
+            case KC_ENV_TYPE_STR: {
+                char **p = (char **)((char *)opts + env_config_table[i].offset);
+                free(*p);
+                *p = strdup(val);
+                break;
+            }
+        }
+    }
+}
+
+/**
+ * Free dynamically allocated resources within an options struct.
+ * @param opts Options to clean up.
+ * @return None.
+ */
+void kc_tpm_options_free(kc_tpm_options_t *opts) {
+    if (!opts) return;
+}
+
+/**
+ * Register a handler for a library-level signal number.
+ * @param tpm Context pointer.
+ * @param sig Application-defined signal number.
+ * @param cb Callback to invoke.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_on_signal(kc_tpm_t *tpm, int sig, kc_tpm_signal_callback_t cb) {
+    int i;
+    if (!tpm) return KC_TPM_ERROR;
+    for (i = 0; i < tpm->n_signal_handlers; i++) {
+        if (tpm->signal_handlers[i].sig == sig) {
+            if (cb) {
+                tpm->signal_handlers[i].cb = cb;
+            } else {
+                int tail = tpm->n_signal_handlers - i - 1;
+                if (tail > 0) {
+                    memmove(&tpm->signal_handlers[i],
+                            &tpm->signal_handlers[i + 1],
+                            (size_t)tail * sizeof(kc_tpm_signal_entry_t));
+                }
+                tpm->n_signal_handlers--;
+            }
+            return KC_TPM_OK;
+        }
+    }
+    if (!cb) return KC_TPM_OK;
+    if (tpm->n_signal_handlers >= tpm->signal_handlers_capacity) {
+        int new_cap = tpm->signal_handlers_capacity ? tpm->signal_handlers_capacity * 2 : 4;
+        kc_tpm_signal_entry_t *p = (kc_tpm_signal_entry_t *)realloc(tpm->signal_handlers,
+            (size_t)new_cap * sizeof(kc_tpm_signal_entry_t));
+        if (!p) return KC_TPM_ERROR;
+        tpm->signal_handlers = p;
+        tpm->signal_handlers_capacity = new_cap;
+    }
+    tpm->signal_handlers[tpm->n_signal_handlers].sig = sig;
+    tpm->signal_handlers[tpm->n_signal_handlers].cb = cb;
+    tpm->n_signal_handlers++;
+    return KC_TPM_OK;
+}
+
+/**
+ * Raise a library-level signal.
+ * @param tpm Context pointer.
+ * @param sig Signal number to raise.
+ * @return KC_TPM_OK if handled, or KC_TPM_ERROR if no handler.
+ */
+int kc_tpm_raise_signal(kc_tpm_t *tpm, int sig) {
+    int i;
+    if (!tpm) return KC_TPM_ERROR;
+    for (i = 0; i < tpm->n_signal_handlers; i++) {
+        if (tpm->signal_handlers[i].sig == sig) {
+            tpm->signal_handlers[i].cb(tpm);
+            return KC_TPM_OK;
+        }
+    }
+    return KC_TPM_ERROR;
+}
+
+/**
+ * Set the internal signal-listener context.
+ * @param tpm Context pointer.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR if tpm is NULL.
+ */
+int kc_tpm_listen_signals(kc_tpm_t *tpm) {
+    if (!tpm) return KC_TPM_ERROR;
+    g_signal_ctx = tpm;
+    return KC_TPM_OK;
+}
+
+/**
+ * Wire an OS signal to the library signal listener.
+ * @param tpm Context pointer.
+ * @param sig_id OS signal number.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_listen_signal(kc_tpm_t *tpm, int sig_id) {
+    if (!tpm) return KC_TPM_ERROR;
+    g_signal_ctx = tpm;
+#ifdef _WIN32
+    (void)sig_id;
+#else
+    signal(sig_id, kc_tpm_signal_listener);
+#endif
+    return KC_TPM_OK;
+}
+
+/**
+ * Generic signal-listener compatible with signal() / sigaction().
+ * @param sig OS signal number.
+ * @return None.
+ */
+void kc_tpm_signal_listener(int sig) {
+    if (g_signal_ctx) {
+        kc_tpm_raise_signal(g_signal_ctx, sig);
+    }
 }
