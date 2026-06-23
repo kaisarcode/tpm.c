@@ -1,5 +1,4 @@
 #!/bin/sh
-# Test.sh
 # Summary: Validation suite for tpm functionality.
 # Author:  KaisarCode
 # Website: https://kaisarcode.com
