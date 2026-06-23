@@ -97,7 +97,36 @@ define linux_target
 		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/linux \
 		-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/linux \
 		-G Ninja -Wno-dev > /dev/null
-	@cmake --build $(BUILD_DIR)/$(subst /,-,$(1))-linux
+	@build_dir=$(BUILD_DIR)/$(subst /,-,$(1))-linux; \
+	build_log=$$build_dir/.tpm-version-build.log; \
+	ninja_log=$$build_dir/.ninja_log; \
+	before_lines=0; \
+	if [ -f "$$ninja_log" ]; then before_lines=$$(wc -l < "$$ninja_log"); fi; \
+	cmake --build $$build_dir; \
+	after_lines=0; \
+	if [ -f "$$ninja_log" ]; then after_lines=$$(wc -l < "$$ninja_log"); fi; \
+	if [ "$$after_lines" -gt "$$before_lines" ]; then \
+		build_version=$$(date +%s); \
+		if ! cmake -S . -B $$build_dir \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_SYSTEM_NAME=Linux \
+			-DCMAKE_C_COMPILER=$(2) \
+			-DKC_TPM_BUILD_VERSION=$$build_version \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$$build_dir/out \
+			-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/linux \
+			-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/linux \
+			-G Ninja -Wno-dev > $$build_log 2>&1; then \
+			cat $$build_log; \
+			rm -f $$build_log; \
+			exit 1; \
+		fi; \
+		if ! cmake --build $$build_dir --target tpm_static tpm_shared tpm_exe > $$build_log 2>&1; then \
+			cat $$build_log; \
+			rm -f $$build_log; \
+			exit 1; \
+		fi; \
+		rm -f $$build_log; \
+	fi
 	@cp $(BUILD_DIR)/$(subst /,-,$(1))-linux/out/tpm $(BIN_DIR)/$(1)/linux/tpm
 	@echo "OK $(1)/linux"
 endef
@@ -150,7 +179,36 @@ define windows_target
 		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/windows \
 		-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/windows \
 		-G Ninja -Wno-dev > /dev/null
-	@cmake --build $(BUILD_DIR)/$(1)-windows
+	@build_dir=$(BUILD_DIR)/$(1)-windows; \
+	build_log=$$build_dir/.tpm-version-build.log; \
+	ninja_log=$$build_dir/.ninja_log; \
+	before_lines=0; \
+	if [ -f "$$ninja_log" ]; then before_lines=$$(wc -l < "$$ninja_log"); fi; \
+	cmake --build $$build_dir; \
+	after_lines=0; \
+	if [ -f "$$ninja_log" ]; then after_lines=$$(wc -l < "$$ninja_log"); fi; \
+	if [ "$$after_lines" -gt "$$before_lines" ]; then \
+		build_version=$$(date +%s); \
+		if ! cmake -S . -B $$build_dir \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_SYSTEM_NAME=Windows \
+			-DCMAKE_C_COMPILER=$(2) \
+			-DKC_TPM_BUILD_VERSION=$$build_version \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$$build_dir/out \
+			-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/windows \
+			-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/windows \
+			-G Ninja -Wno-dev > $$build_log 2>&1; then \
+			cat $$build_log; \
+			rm -f $$build_log; \
+			exit 1; \
+		fi; \
+		if ! cmake --build $$build_dir --target tpm_static tpm_shared tpm_exe > $$build_log 2>&1; then \
+			cat $$build_log; \
+			rm -f $$build_log; \
+			exit 1; \
+		fi; \
+		rm -f $$build_log; \
+	fi
 	@cp $(BUILD_DIR)/$(1)-windows/out/tpm.exe $(BIN_DIR)/$(1)/windows/tpm.exe
 	@cp $(BUILD_DIR)/$(1)-windows/out/libtpm.dll $(BIN_DIR)/$(1)/windows/libtpm.dll
 	@echo "OK $(1)/windows"
@@ -175,7 +233,37 @@ define android_target
 		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/android \
 		-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/android \
 		-G Ninja -Wno-dev > /dev/null
-	@cmake --build $(BUILD_DIR)/$(1)-android
+	@build_dir=$(BUILD_DIR)/$(1)-android; \
+	build_log=$$build_dir/.tpm-version-build.log; \
+	ninja_log=$$build_dir/.ninja_log; \
+	before_lines=0; \
+	if [ -f "$$ninja_log" ]; then before_lines=$$(wc -l < "$$ninja_log"); fi; \
+	cmake --build $$build_dir; \
+	after_lines=0; \
+	if [ -f "$$ninja_log" ]; then after_lines=$$(wc -l < "$$ninja_log"); fi; \
+	if [ "$$after_lines" -gt "$$before_lines" ]; then \
+		build_version=$$(date +%s); \
+		if ! cmake -S . -B $$build_dir \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_TOOLCHAIN_FILE=$(NDK_TOOLCHAIN) \
+			-DANDROID_ABI=$(2) \
+			-DANDROID_PLATFORM=android-21 \
+			-DKC_TPM_BUILD_VERSION=$$build_version \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$$build_dir/out \
+			-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/android \
+			-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=$(CURDIR)/$(BIN_DIR)/$(1)/android \
+			-G Ninja -Wno-dev > $$build_log 2>&1; then \
+			cat $$build_log; \
+			rm -f $$build_log; \
+			exit 1; \
+		fi; \
+		if ! cmake --build $$build_dir --target tpm_static tpm_shared tpm_exe > $$build_log 2>&1; then \
+			cat $$build_log; \
+			rm -f $$build_log; \
+			exit 1; \
+		fi; \
+		rm -f $$build_log; \
+	fi
 	@cp $(BUILD_DIR)/$(1)-android/out/tpm $(BIN_DIR)/$(1)/android/tpm
 	@echo "OK $(1)/android"
 endef

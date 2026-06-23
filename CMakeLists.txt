@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.14)
 project(tpm C)
 
 set(CMAKE_C_STANDARD 11)
+set(KC_TPM_BUILD_VERSION "0" CACHE STRING "tpm build version timestamp")
+
 
 option(TPM_NATIVE "Enable native CPU optimizations" OFF)
 
@@ -16,6 +18,11 @@ endif()
 
 set(TPM_SOURCES src/libtpm.c)
 set(TPM_HEADERS src/tpm.h)
+
+set_property(
+    SOURCE src/libtpm.c
+    APPEND PROPERTY COMPILE_DEFINITIONS KC_TPM_BUILD_VERSION=${KC_TPM_BUILD_VERSION}
+)
 
 add_library(tpm_shared SHARED ${TPM_SOURCES})
 set_target_properties(tpm_shared PROPERTIES OUTPUT_NAME tpm PREFIX "lib")

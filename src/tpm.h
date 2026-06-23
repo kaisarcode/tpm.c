@@ -11,6 +11,7 @@
 #define KC_TPM_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,6 +70,12 @@ double kc_tpm_score(kc_tpm_t *tpm, const char *input_text);
  * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
 int kc_tpm_close(kc_tpm_t *tpm);
+
+/**
+ * Retrieves the library build version as a Unix timestamp.
+ * @return Build version timestamp.
+ */
+uint64_t kc_tpm_version(void);
 
 #ifdef __cplusplus
 }

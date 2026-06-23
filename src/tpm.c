@@ -13,8 +13,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define KC_TPM_VERSION "1.1.1"
-
 /**
  * Read a file into a dynamically allocated buffer.
  * @param path File path.
@@ -165,11 +163,11 @@ static void kc_tpm_help(void) {
 }
 
 /**
- * Print CLI version message.
+ * Prints the binary version to stdout.
  * @return None.
  */
-static void kc_tpm_version(void) {
-    printf("tpm %s\n", KC_TPM_VERSION);
+static void kc_tpm_print_version(void) {
+    printf("tpm build %llu\n", (unsigned long long)kc_tpm_version());
 }
 
 /**
@@ -196,7 +194,7 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
-            kc_tpm_version();
+            kc_tpm_print_version();
             return 0;
         }
         if (strcmp(argv[i], "-n") == 0) {

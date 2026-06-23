@@ -14,6 +14,10 @@
 
 #include "tpm.h"
 
+#ifndef KC_TPM_BUILD_VERSION
+#define KC_TPM_BUILD_VERSION 0ULL
+#endif
+
 #include <ctype.h>
 #include <math.h>
 #include <stdlib.h>
@@ -512,4 +516,12 @@ void kc_tpm_signal_listener(int sig) {
         return;
     signal(sig, SIG_DFL);
     raise(sig);
+}
+
+/**
+ * Retrieves the library build version as a Unix timestamp.
+ * @return Build version timestamp.
+ */
+uint64_t kc_tpm_version(void) {
+    return (uint64_t)KC_TPM_BUILD_VERSION;
 }
