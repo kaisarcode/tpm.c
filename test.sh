@@ -179,6 +179,45 @@ kc_test_ngram_size() {
     fi
 }
 
+# Tests multi-context isolation: two contexts, stop one, other unaffected.
+# @return 0 on success, 1 on failure.
+kc_test_multi_context() {
+    tmpdir=$(mktemp -d)
+
+    {
+        printf '%s\n' '#include "tpm.h"'
+        printf '%s\n' '#include <stdio.h>'
+        printf '%s\n' '#include <string.h>'
+        printf '%s\n' 'int main(void) {'
+        printf '%s\n' '    kc_tpm_options_t opts = kc_tpm_options_default();'
+        printf '%s\n' '    kc_tpm_t *ctx1, *ctx2;'
+        printf '%s\n' '    if (kc_tpm_open(&ctx1, &opts) != KC_TPM_OK) return 1;'
+        printf '%s\n' '    if (kc_tpm_open(&ctx2, &opts) != KC_TPM_OK) { kc_tpm_close(ctx1); return 1; }'
+        printf '%s\n' '    if (kc_tpm_stop(NULL) != KC_TPM_ERROR) { kc_tpm_close(ctx1); kc_tpm_close(ctx2); return 2; }'
+        printf '%s\n' '    if (kc_tpm_stop(ctx1) != KC_TPM_OK) { kc_tpm_close(ctx1); kc_tpm_close(ctx2); return 3; }'
+        printf '%s\n' '    if (kc_tpm_build(ctx2, "test data", 2) != KC_TPM_OK) { kc_tpm_close(ctx1); kc_tpm_close(ctx2); return 4; }'
+        printf '%s\n' '    kc_tpm_score(ctx2, "test");'
+        printf '%s\n' '    kc_tpm_close(ctx1); kc_tpm_close(ctx2);'
+        printf '%s\n' '    return 0;'
+        printf '%s\n' '}'
+    } > "$tmpdir/multictx.c"
+
+    cc -I "$PWD/src" "$tmpdir/multictx.c" -L"$PWD/bin/x86_64/linux" -ltpm -o "$tmpdir/multictx" -Wl,-rpath,"$PWD/bin/x86_64/linux" -lm || {
+        kc_test_fail "multi_context: compile failed"
+        rm -rf "$tmpdir"
+        return 1
+    }
+
+    if ! "$tmpdir/multictx"; then
+        kc_test_fail "multi_context: run failed"
+        rm -rf "$tmpdir"
+        return 1
+    fi
+
+    rm -rf "$tmpdir"
+    kc_test_pass "multi_context"
+}
+
 # Runs the full validation suite.
 # @return 0 on success, 1 on failure.
 kc_test_main() {
@@ -197,6 +236,8 @@ kc_test_main() {
     kc_test_scoring        || failed=$((failed + 1))
     kc_test_empty_input    || failed=$((failed + 1))
     kc_test_ngram_size     || failed=$((failed + 1))
+
+    kc_test_multi_context  || failed=$((failed + 1))
 
     rm -rf "${TMP}"
     return $failed
