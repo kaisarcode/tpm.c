@@ -113,23 +113,40 @@ typedef struct kc_tpm kc_tpm_t;
 | :----- | :---- |
 | `KC_TPM_OK` | 0 |
 | `KC_TPM_ERROR` | -1 |
+| `KC_TPM_ESTOP` | -3 |
 
 ### Functions
 
 | Function | Returns | Description |
 | :------- | :------ | :---------- |
-| `kc_tpm_open(void)` | `kc_tpm_t *` | Allocate a new context. Returns NULL on failure. |
+| `kc_tpm_options_default(void)` | `kc_tpm_options_t` | Return default options. |
+| `kc_tpm_options_load_env(opts)` | `void` | Load supported environment options. |
+| `kc_tpm_options_free(opts)` | `void` | Release resources owned by options. |
+| `kc_tpm_open(out, opts)` | `int` | Allocate a new context into `out`. |
 | `kc_tpm_build(tpm, map_text, ngram_size)` | `int` | Build an n-gram profile from map text. `ngram_size` must be 1–8. |
 | `kc_tpm_score(tpm, input_text)` | `double` | Score input text against the built profile. Returns 0.0–1.0. |
-| `kc_tpm_close(tpm)` | `void` | Free the context. Safe on NULL. |
+| `kc_tpm_stop(tpm)` | `int` | Request stop for a context. |
+| `kc_tpm_on_signal(tpm, sig, cb)` | `int` | Register, replace, or remove a signal callback. |
+| `kc_tpm_raise_signal(tpm, sig)` | `int` | Raise a library-level signal. |
+| `kc_tpm_listen_signals(tpm)` | `int` | Add a context to the signal listener list. |
+| `kc_tpm_listen_signal(tpm, sig_id)` | `int` | Register an OS signal listener for a context. |
+| `kc_tpm_signal_listener(sig)` | `void` | Dispatch an OS signal to registered contexts. |
+| `kc_tpm_close(tpm)` | `int` | Free the context. |
+| `kc_tpm_version(void)` | `uint64_t` | Return the build version timestamp. |
 
 ### Lifecycle
 
 ```c
-kc_tpm_t *t = kc_tpm_open();
-kc_tpm_build(t, map_text, 3);
-double score = kc_tpm_score(t, input_text);
-kc_tpm_close(t);
+kc_tpm_options_t opts = kc_tpm_options_default();
+kc_tpm_t *t = NULL;
+
+if (kc_tpm_open(&t, &opts) == KC_TPM_OK) {
+    kc_tpm_build(t, map_text, 3);
+    double score = kc_tpm_score(t, input_text);
+    kc_tpm_close(t);
+}
+
+kc_tpm_options_free(&opts);
 ```
 
 ---
@@ -141,6 +158,26 @@ Compiled artifacts are generated under `bin/{arch}/{platform}/` for the host arc
 ```bash
 make clean && make
 ```
+
+### Tests
+
+The portable test entry point is `make test`. Build project artifacts first, then run tests. Tests compile only test executables, link dynamically against the generated shared library, and run through CTest.
+
+```bash
+make
+make test
+```
+
+To run the common `test` target in Windows-through-Wine mode:
+
+```bash
+make x86_64/windows
+make test wine
+```
+
+The portable C test source is `src/test.c`. Test binaries and runtime outputs are build artifacts and are not stored in the project tree.
+
+Build targets such as `make x86_64/windows` compile project artifacts. Tests are run only through `make test` or `make test wine`.
 
 ### Multiarch Builds
 
