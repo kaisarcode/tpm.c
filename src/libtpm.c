@@ -14,7 +14,8 @@
 
 #include "tpm.h"
 
-#ifndef KC_TPM_BUILD_VERSION
+#if !defined(KC_TPM_BUILD_VERSION) || KC_TPM_BUILD_VERSION + 0 == 0
+#undef KC_TPM_BUILD_VERSION
 #define KC_TPM_BUILD_VERSION 0ULL
 #endif
 

@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.14)
 project(tpm C)
 
 set(CMAKE_C_STANDARD 11)
-set(KC_TPM_BUILD_VERSION "0" CACHE STRING "tpm build version timestamp")
-
+if(NOT DEFINED KC_TPM_BUILD_VERSION)
+    set(KC_TPM_BUILD_VERSION 0)
+endif()
 
 option(TPM_NATIVE "Enable native CPU optimizations" OFF)
 option(TPM_BUILD_TESTS "Build tpm tests" OFF)
+
+add_definitions(-DKC_TPM_BUILD_VERSION=${KC_TPM_BUILD_VERSION})
 
 set(TPM_TEST_EXTERNAL_ARTIFACTS OFF)
 if(TPM_BUILD_TESTS AND TPM_TEST_SHARED_LIBRARY)
@@ -28,9 +31,8 @@ endif()
 set(TPM_SOURCES src/libtpm.c)
 set(TPM_HEADERS src/tpm.h)
 
-set_property(
-    SOURCE src/libtpm.c
-    APPEND PROPERTY COMPILE_DEFINITIONS KC_TPM_BUILD_VERSION=${KC_TPM_BUILD_VERSION}
+set_source_files_properties(src/libtpm.c PROPERTIES
+    COMPILE_DEFINITIONS KC_TPM_BUILD_VERSION=${KC_TPM_BUILD_VERSION}
 )
 
 if(NOT TPM_TEST_EXTERNAL_ARTIFACTS)
