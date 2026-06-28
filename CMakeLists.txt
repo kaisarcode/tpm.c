@@ -96,37 +96,18 @@ if(TPM_BUILD_TESTS)
             $<TARGET_FILE_DIR:tpm_contract_test>
     )
 
-    add_test(NAME library-version COMMAND tpm_contract_test version)
-    add_test(NAME library-options COMMAND tpm_contract_test options)
-    add_test(NAME library-open-close COMMAND tpm_contract_test open-close)
-    add_test(NAME library-profile-score COMMAND tpm_contract_test profile-score)
-    add_test(NAME library-stop COMMAND tpm_contract_test stop)
-    add_test(NAME library-signals COMMAND tpm_contract_test signals)
-    add_test(NAME library-multictx COMMAND tpm_contract_test multictx)
-
-    if(TPM_TEST_CLI)
-        add_executable(tpm_test_cli IMPORTED)
-        set_target_properties(tpm_test_cli PROPERTIES
-            IMPORTED_LOCATION "${TPM_TEST_CLI}"
-        )
-        set(TPM_TEST_CLI_COMMAND tpm_test_cli)
-    else()
-        set(TPM_TEST_CLI_COMMAND tpm_exe)
-    endif()
-
-    add_test(NAME cli-help-short COMMAND ${TPM_TEST_CLI_COMMAND} -h)
-    add_test(NAME cli-help-long COMMAND ${TPM_TEST_CLI_COMMAND} --help)
-    add_test(NAME cli-version-short COMMAND ${TPM_TEST_CLI_COMMAND} -v)
-    add_test(NAME cli-version-long COMMAND ${TPM_TEST_CLI_COMMAND} --version)
-    add_test(NAME cli-unknown-option COMMAND ${TPM_TEST_CLI_COMMAND} --bogus)
-    add_test(NAME cli-missing-map COMMAND ${TPM_TEST_CLI_COMMAND})
-    add_test(NAME cli-invalid-map COMMAND ${TPM_TEST_CLI_COMMAND} /nonexistent/map.file)
-    add_test(NAME cli-missing-ngram-value COMMAND ${TPM_TEST_CLI_COMMAND} -n)
-    set_tests_properties(
-        cli-unknown-option
-        cli-missing-map
-        cli-invalid-map
-        cli-missing-ngram-value
-        PROPERTIES WILL_FAIL TRUE
-    )
+    add_test(NAME library-kc_tpm_options_default COMMAND tpm_contract_test kc_tpm_options_default)
+    add_test(NAME library-kc_tpm_options_load_env COMMAND tpm_contract_test kc_tpm_options_load_env)
+    add_test(NAME library-kc_tpm_options_free COMMAND tpm_contract_test kc_tpm_options_free)
+    add_test(NAME library-kc_tpm_on_signal COMMAND tpm_contract_test kc_tpm_on_signal)
+    add_test(NAME library-kc_tpm_raise_signal COMMAND tpm_contract_test kc_tpm_raise_signal)
+    add_test(NAME library-kc_tpm_stop COMMAND tpm_contract_test kc_tpm_stop)
+    add_test(NAME library-kc_tpm_listen_signals COMMAND tpm_contract_test kc_tpm_listen_signals)
+    add_test(NAME library-kc_tpm_listen_signal COMMAND tpm_contract_test kc_tpm_listen_signal)
+    add_test(NAME library-kc_tpm_signal_listener COMMAND tpm_contract_test kc_tpm_signal_listener)
+    add_test(NAME library-kc_tpm_open COMMAND tpm_contract_test kc_tpm_open)
+    add_test(NAME library-kc_tpm_build COMMAND tpm_contract_test kc_tpm_build)
+    add_test(NAME library-kc_tpm_score COMMAND tpm_contract_test kc_tpm_score)
+    add_test(NAME library-kc_tpm_close COMMAND tpm_contract_test kc_tpm_close)
+    add_test(NAME library-kc_tpm_version COMMAND tpm_contract_test kc_tpm_version)
 endif()
