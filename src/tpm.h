@@ -24,10 +24,21 @@ typedef struct kc_tpm kc_tpm_t;
 #define KC_TPM_ESTOP  -3
 
 typedef struct {
+    char *ctrl_path;
     int reserved;
 } kc_tpm_options_t;
 
 typedef void (*kc_tpm_signal_callback_t)(kc_tpm_t *tpm);
+
+/**
+ * Control command callback.
+ * @param ctx Context handle.
+ * @param fd Control connection file descriptor.
+ * @param argc Number of arguments.
+ * @param argv Argument vector.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+typedef int (*kc_tpm_ctrl_callback_t)(kc_tpm_t *ctx, int fd, int argc, char **argv);
 
 kc_tpm_options_t kc_tpm_options_default(void);
 void kc_tpm_options_load_env(kc_tpm_options_t *opts);
@@ -42,6 +53,13 @@ int kc_tpm_raise_signal(kc_tpm_t *tpm, int sig);
  * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
 int kc_tpm_stop(kc_tpm_t *tpm);
+
+/**
+ * Returns whether stop was requested on a specific tpm context.
+ * @param tpm Context pointer.
+ * @return 1 if stop was requested, or 0 otherwise.
+ */
+int kc_tpm_stop_requested(kc_tpm_t *tpm);
 
 int kc_tpm_listen_signals(kc_tpm_t *tpm);
 int kc_tpm_listen_signal(kc_tpm_t *tpm, int sig_id);
@@ -79,6 +97,45 @@ double kc_tpm_score(kc_tpm_t *tpm, const char *input_text);
  * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
 int kc_tpm_close(kc_tpm_t *tpm);
+
+/**
+ * Register a control command handler.
+ * @param ctx Context handle.
+ * @param cmd Command name.
+ * @param cb Callback function, or NULL to remove.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_ctrl_on(kc_tpm_t *ctx, const char *cmd, kc_tpm_ctrl_callback_t cb);
+
+/**
+ * Remove a control command handler.
+ * @param ctx Context handle.
+ * @param cmd Command name.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_ctrl_off(kc_tpm_t *ctx, const char *cmd);
+
+/**
+ * Open a Unix domain socket for control commands.
+ * @param ctx Context handle.
+ * @param path Socket path.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_ctrl_open(kc_tpm_t *ctx, const char *path);
+
+/**
+ * Close the control socket and all active connections.
+ * @param ctx Context handle.
+ * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_ctrl_close(kc_tpm_t *ctx);
+
+/**
+ * Poll the control socket without blocking.
+ * @param ctx Context handle.
+ * @return Number of handled commands, or KC_TPM_ERROR on failure.
+ */
+int kc_tpm_ctrl_poll(kc_tpm_t *ctx);
 
 /**
  * Retrieves the library build version as a Unix timestamp.
