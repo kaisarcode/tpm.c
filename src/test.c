@@ -11,7 +11,7 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 
-#include "tpm.h"
+#include "libtpm.h"
 
 #include <signal.h>
 #include <stdint.h>

@@ -13,7 +13,7 @@
 #endif
 #include <signal.h>
 
-#include "tpm.h"
+#include "libtpm.h"
 
 #if !defined(KC_TPM_BUILD_VERSION) || KC_TPM_BUILD_VERSION + 0 == 0
 #undef KC_TPM_BUILD_VERSION

@@ -7,7 +7,7 @@
  * License: https://www.gnu.org/licenses/gpl-3.0.html
  */
 
-#include "tpm.h"
+#include "libtpm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
