@@ -148,13 +148,12 @@ static int kc_tpm_read_stdin(char **out_text) {
  * @return None.
  */
 static void kc_tpm_help(void) {
-    printf("Usage: tpm <map> [-n <size>] [--ctrl <path>]\n");
+    printf("Usage: tpm <map> [-n <size>]\n");
     printf("\n");
     printf("Score stdin text against the n-gram profile built from <map>.\n");
     printf("\n");
     printf("Options:\n");
     printf("  -n <size>      N-gram size (default 3)\n");
-    printf("  --ctrl <path>  Open a control socket during execution\n");
     printf("  -h, --help     Show this help\n");
     printf("  -v, --version  Show version\n");
     printf("\n");
@@ -225,21 +224,6 @@ int main(int argc, char **argv) {
             ngram_size = (int)val;
             continue;
         }
-        if (strcmp(argv[i], "--ctrl") == 0) {
-            if (++i >= argc) {
-                fprintf(stderr, "tpm: missing value for --ctrl\n");
-                kc_tpm_options_free(&opts);
-                return 1;
-            }
-            free(opts.ctrl_path);
-            opts.ctrl_path = strdup(argv[i]);
-            if (!opts.ctrl_path) {
-                fprintf(stderr, "tpm: out of memory\n");
-                kc_tpm_options_free(&opts);
-                return 1;
-            }
-            continue;
-        }
         if (argv[i][0] == '-') {
             fprintf(stderr, "tpm: unknown option '%s'\n", argv[i]);
             kc_tpm_options_free(&opts);
@@ -271,18 +255,6 @@ int main(int argc, char **argv) {
     kc_tpm_listen_signal(tpm, 15);
 #endif
 
-    if (opts.ctrl_path) {
-        if (kc_tpm_ctrl_open(tpm, opts.ctrl_path) != KC_TPM_OK) {
-            fprintf(stderr, "tpm: failed to open control socket at %s\n", opts.ctrl_path);
-            kc_tpm_close(tpm);
-            kc_tpm_options_free(&opts);
-            free(map_text);
-            free(stdin_text);
-            return 1;
-        }
-    }
-
-    kc_tpm_ctrl_poll(tpm);
     if (kc_tpm_stop_requested(tpm)) {
         kc_tpm_close(tpm);
         kc_tpm_options_free(&opts);
@@ -296,7 +268,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    kc_tpm_ctrl_poll(tpm);
     if (kc_tpm_stop_requested(tpm)) {
         kc_tpm_close(tpm);
         kc_tpm_options_free(&opts);
@@ -312,7 +283,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    kc_tpm_ctrl_poll(tpm);
     if (kc_tpm_stop_requested(tpm)) {
         kc_tpm_close(tpm);
         kc_tpm_options_free(&opts);
@@ -339,7 +309,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    kc_tpm_ctrl_poll(tpm);
     if (kc_tpm_stop_requested(tpm)) {
         kc_tpm_close(tpm);
         kc_tpm_options_free(&opts);
@@ -348,7 +317,6 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    kc_tpm_ctrl_poll(tpm);
     if (kc_tpm_stop_requested(tpm)) {
         kc_tpm_close(tpm);
         kc_tpm_options_free(&opts);

@@ -75,25 +75,8 @@ Distinguishes HTTP access logs from system logs by their line structure.
 | Flag | Description |
 | :--- | :--- |
 | `-n <size>` | N-gram size (default 3, max 8) |
-| `--ctrl <path>` | Open a Unix domain control socket while the process is alive |
 | `-h`, `--help` | Show help and usage |
 | `-v`, `--version` | Show version |
-
-### Control Socket
-
-When `--ctrl <path>` is set, `tpm` opens a Unix domain socket for the lifetime of the current run.
-
-Supported commands:
-
-| Command | Behavior |
-| :--- | :--- |
-| `HELP` | List registered commands |
-| `STOP` | Request early stop and let the process exit cleanly |
-| `GET ctrl_path` | Return the active control socket path |
-| `GET reserved` | Return the current `reserved` field value |
-| `SET ...` | Rejects unknown keys because `tpm` has no real runtime-tunable settings yet |
-
-Environment variable: `KC_TPM_CTRL` sets the default control socket path. `--ctrl` overrides it.
 
 ### Input
 
@@ -149,11 +132,6 @@ typedef struct kc_tpm kc_tpm_t;
 | `kc_tpm_listen_signals(tpm)` | `int` | Add a context to the signal listener list. |
 | `kc_tpm_listen_signal(tpm, sig_id)` | `int` | Register an OS signal listener for a context. |
 | `kc_tpm_signal_listener(sig)` | `void` | Dispatch an OS signal to registered contexts. |
-| `kc_tpm_ctrl_on(ctx, cmd, cb)` | `int` | Register or remove a control command handler. |
-| `kc_tpm_ctrl_off(ctx, cmd)` | `int` | Remove a control command handler. |
-| `kc_tpm_ctrl_open(ctx, path)` | `int` | Open a Unix domain control socket. |
-| `kc_tpm_ctrl_close(ctx)` | `int` | Close the control socket and active connections. |
-| `kc_tpm_ctrl_poll(ctx)` | `int` | Poll the control socket without blocking. |
 | `kc_tpm_close(tpm)` | `int` | Free the context. |
 | `kc_tpm_version(void)` | `uint64_t` | Return the build version timestamp. |
 

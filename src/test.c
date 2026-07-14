@@ -18,29 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32
-#include <process.h>
-#else
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-#endif
-
-/**
- * Sets or clears a process environment variable.
- * @param name Variable name.
- * @param value Variable value, or NULL to clear.
- * @return 0 on success, or 1 on failure.
- */
-static int set_env_value(const char *name, const char *value) {
-#ifdef _WIN32
-    return _putenv_s(name, value != NULL ? value : "") == 0 ? 0 : 1;
-#else
-    if (value == NULL) return unsetenv(name) == 0 ? 0 : 1;
-    return setenv(name, value, 1) == 0 ? 0 : 1;
-#endif
-}
-
 static int signal_count;
 static int signal_count_b;
 static kc_tpm_t *signal_ctx_seen;
@@ -130,7 +107,6 @@ static int case_kc_tpm_options_default(void) {
 
     opts = kc_tpm_options_default();
     rc = 0;
-    rc += expect_true("options_default initializes ctrl_path", opts.ctrl_path == NULL);
     rc += expect_int("options_default initializes reserved", 0, opts.reserved);
     return rc == 0 ? 0 : 1;
 }
@@ -145,19 +121,9 @@ static int case_kc_tpm_options_load_env(void) {
 
     rc = 0;
     opts = kc_tpm_options_default();
-    set_env_value("KC_TPM_CTRL", NULL);
     opts.reserved = 9;
     kc_tpm_options_load_env(&opts);
     rc += expect_int("kc_tpm_options_load_env preserves unmapped options", 9, opts.reserved);
-    rc += expect_true("kc_tpm_options_load_env leaves ctrl unset", opts.ctrl_path == NULL);
-    if (set_env_value("KC_TPM_CTRL", "/tmp/tpm_env.sock") != 0) {
-        kc_tpm_options_free(&opts);
-        return 1;
-    }
-    kc_tpm_options_load_env(&opts);
-    rc += expect_true("kc_tpm_options_load_env loads ctrl_path",
-        opts.ctrl_path != NULL && strcmp(opts.ctrl_path, "/tmp/tpm_env.sock") == 0);
-    set_env_value("KC_TPM_CTRL", NULL);
     kc_tpm_options_load_env(NULL);
     rc += expect_true("kc_tpm_options_load_env accepts NULL", 1);
     kc_tpm_options_free(&opts);
@@ -174,10 +140,8 @@ static int case_kc_tpm_options_free(void) {
 
     rc = 0;
     opts = kc_tpm_options_default();
-    opts.ctrl_path = strdup("/tmp/tpm_free.sock");
     opts.reserved = 11;
     kc_tpm_options_free(&opts);
-    rc += expect_true("kc_tpm_options_free clears ctrl_path", opts.ctrl_path == NULL);
     rc += expect_int("kc_tpm_options_free preserves plain options", 11, opts.reserved);
     kc_tpm_options_free(NULL);
     rc += expect_true("kc_tpm_options_free accepts NULL", 1);
@@ -203,301 +167,6 @@ static int case_kc_tpm_stop_requested(void) {
     rc += expect_int("stop_requested becomes set", 1, kc_tpm_stop_requested(tpm));
     rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
     return rc == 0 ? 0 : 1;
-}
-
-/**
- * Tests control socket HELP command.
- * @return 0 on success, 1 on failure.
- */
-static int case_ctrl_help(void) {
-#ifndef _WIN32
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    const char *sock_path;
-    struct sockaddr_un addr;
-    int client_fd;
-    char buf[256];
-    ssize_t n;
-    int rc;
-
-    sock_path = "/tmp/tpm_ctrl_help.sock";
-    unlink(sock_path);
-    opts = kc_tpm_options_default();
-    if (kc_tpm_open(&tpm, &opts) != KC_TPM_OK) {
-        kc_tpm_options_free(&opts);
-        return 1;
-    }
-    kc_tpm_options_free(&opts);
-
-    if (kc_tpm_ctrl_open(tpm, sock_path) != KC_TPM_OK) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_fd < 0) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
-
-    if (connect(client_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    kc_tpm_ctrl_poll(tpm);
-    if (write(client_fd, "HELP\n", 5) != 5) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-    kc_tpm_ctrl_poll(tpm);
-
-    n = read(client_fd, buf, sizeof(buf) - 1);
-    if (n > 0) buf[n] = '\0';
-
-    rc = 0;
-    rc += expect_true("ctrl help returns OK", n > 0 && strncmp(buf, "OK ", 3) == 0);
-    rc += expect_true("ctrl help lists HELP", n > 0 && strstr(buf, "HELP") != NULL);
-    rc += expect_true("ctrl help lists STOP", n > 0 && strstr(buf, "STOP") != NULL);
-
-    close(client_fd);
-    kc_tpm_close(tpm);
-    unlink(sock_path);
-    return rc == 0 ? 0 : 1;
-#else
-    return expect_true("ctrl help is skipped on Windows", 1);
-#endif
-}
-
-/**
- * Tests control socket STOP command.
- * @return 0 on success, 1 on failure.
- */
-static int case_ctrl_stop(void) {
-#ifndef _WIN32
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    const char *sock_path;
-    struct sockaddr_un addr;
-    int client_fd;
-    char buf[256];
-    ssize_t n;
-    int rc;
-
-    sock_path = "/tmp/tpm_ctrl_stop.sock";
-    unlink(sock_path);
-    opts = kc_tpm_options_default();
-    if (kc_tpm_open(&tpm, &opts) != KC_TPM_OK) {
-        kc_tpm_options_free(&opts);
-        return 1;
-    }
-    kc_tpm_options_free(&opts);
-
-    if (kc_tpm_ctrl_open(tpm, sock_path) != KC_TPM_OK) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_fd < 0) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
-
-    if (connect(client_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    kc_tpm_ctrl_poll(tpm);
-    if (write(client_fd, "STOP\n", 5) != 5) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-    kc_tpm_ctrl_poll(tpm);
-
-    n = read(client_fd, buf, sizeof(buf) - 1);
-    if (n > 0) buf[n] = '\0';
-
-    rc = 0;
-    rc += expect_true("ctrl stop returns OK", n > 0 && strncmp(buf, "OK", 2) == 0);
-    rc += expect_int("ctrl stop sets stop_requested", 1, kc_tpm_stop_requested(tpm));
-
-    close(client_fd);
-    kc_tpm_close(tpm);
-    unlink(sock_path);
-    return rc == 0 ? 0 : 1;
-#else
-    return expect_true("ctrl stop is skipped on Windows", 1);
-#endif
-}
-
-/**
- * Tests control socket GET command.
- * @return 0 on success, 1 on failure.
- */
-static int case_ctrl_get(void) {
-#ifndef _WIN32
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    const char *sock_path;
-    struct sockaddr_un addr;
-    int client_fd;
-    char buf[256];
-    ssize_t n;
-    int rc;
-
-    sock_path = "/tmp/tpm_ctrl_get.sock";
-    unlink(sock_path);
-    opts = kc_tpm_options_default();
-    opts.ctrl_path = strdup(sock_path);
-    opts.reserved = 17;
-    if (kc_tpm_open(&tpm, &opts) != KC_TPM_OK) {
-        kc_tpm_options_free(&opts);
-        return 1;
-    }
-    kc_tpm_options_free(&opts);
-
-    if (kc_tpm_ctrl_open(tpm, sock_path) != KC_TPM_OK) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_fd < 0) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
-
-    if (connect(client_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    kc_tpm_ctrl_poll(tpm);
-    if (write(client_fd, "GET ctrl_path\n", 14) != 14) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-    kc_tpm_ctrl_poll(tpm);
-
-    n = read(client_fd, buf, sizeof(buf) - 1);
-    if (n > 0) buf[n] = '\0';
-
-    rc = 0;
-    rc += expect_true("ctrl get returns OK", n > 0 && strncmp(buf, "OK ", 3) == 0);
-    rc += expect_true("ctrl get returns socket path", n > 0 && strstr(buf, sock_path) != NULL);
-
-    close(client_fd);
-    kc_tpm_close(tpm);
-    unlink(sock_path);
-    return rc == 0 ? 0 : 1;
-#else
-    return expect_true("ctrl get is skipped on Windows", 1);
-#endif
-}
-
-/**
- * Tests control socket SET command.
- * @return 0 on success, 1 on failure.
- */
-static int case_ctrl_set(void) {
-#ifndef _WIN32
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    const char *sock_path;
-    struct sockaddr_un addr;
-    int client_fd;
-    char buf[256];
-    ssize_t n;
-    int rc;
-
-    sock_path = "/tmp/tpm_ctrl_set.sock";
-    unlink(sock_path);
-    opts = kc_tpm_options_default();
-    if (kc_tpm_open(&tpm, &opts) != KC_TPM_OK) {
-        kc_tpm_options_free(&opts);
-        return 1;
-    }
-    kc_tpm_options_free(&opts);
-
-    if (kc_tpm_ctrl_open(tpm, sock_path) != KC_TPM_OK) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_fd < 0) {
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
-
-    if (connect(client_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-
-    kc_tpm_ctrl_poll(tpm);
-    if (write(client_fd, "SET reserved 5\n", 15) != 15) {
-        close(client_fd);
-        kc_tpm_close(tpm);
-        unlink(sock_path);
-        return 1;
-    }
-    kc_tpm_ctrl_poll(tpm);
-
-    n = read(client_fd, buf, sizeof(buf) - 1);
-    if (n > 0) buf[n] = '\0';
-
-    rc = 0;
-    rc += expect_true("ctrl set rejects unknown key",
-        n > 0 && strcmp(buf, "ERR unknown key\n") == 0);
-
-    close(client_fd);
-    kc_tpm_close(tpm);
-    unlink(sock_path);
-    return rc == 0 ? 0 : 1;
-#else
-    return expect_true("ctrl set is skipped on Windows", 1);
-#endif
 }
 
 /**
@@ -820,10 +489,6 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "kc_tpm_score") == 0) return case_kc_tpm_score();
     if (strcmp(argv[1], "kc_tpm_close") == 0) return case_kc_tpm_close();
     if (strcmp(argv[1], "kc_tpm_version") == 0) return case_kc_tpm_version();
-    if (strcmp(argv[1], "ctrl-help") == 0) return case_ctrl_help();
-    if (strcmp(argv[1], "ctrl-stop") == 0) return case_ctrl_stop();
-    if (strcmp(argv[1], "ctrl-get") == 0) return case_ctrl_get();
-    if (strcmp(argv[1], "ctrl-set") == 0) return case_ctrl_set();
     fprintf(stderr, "unknown test case: %s\n", argv[1]);
     return 2;
 }
