@@ -249,12 +249,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    kc_tpm_listen_signals(tpm);
-#ifndef _WIN32
-    kc_tpm_listen_signal(tpm, 2);
-    kc_tpm_listen_signal(tpm, 15);
-#endif
-
     if (kc_tpm_stop_requested(tpm)) {
         kc_tpm_close(tpm);
         kc_tpm_options_free(&opts);

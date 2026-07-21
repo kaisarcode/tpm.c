@@ -13,35 +13,10 @@
 
 #include "libtpm.h"
 
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static int signal_count;
-static int signal_count_b;
-static kc_tpm_t *signal_ctx_seen;
-
-/**
- * Stores one observed signal callback.
- * @param tpm Context passed by the library.
- * @return None.
- */
-static void count_signal(kc_tpm_t *tpm) {
-    signal_count++;
-    signal_ctx_seen = tpm;
-}
-
-/**
- * Stores one observed replacement signal callback.
- * @param tpm Context passed by the library.
- * @return None.
- */
-static void count_signal_b(kc_tpm_t *tpm) {
-    (void)tpm;
-    signal_count_b++;
-}
-
 /**
  * Verifies one integer result.
  * @param name Check description.
@@ -170,78 +145,6 @@ static int case_kc_tpm_stop_requested(void) {
 }
 
 /**
- * Tests kc_tpm_on_signal.
- * @return 0 on success, 1 on failure.
- */
-static int case_kc_tpm_on_signal(void) {
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    int rc;
-    int i;
-
-    rc = 0;
-    opts = kc_tpm_options_default();
-    tpm = NULL;
-    signal_count = 0;
-    signal_count_b = 0;
-    signal_ctx_seen = NULL;
-    rc += expect_int("on_signal(NULL) returns ERROR", KC_TPM_ERROR,
-        kc_tpm_on_signal(NULL, 1, count_signal));
-    rc += expect_int("open returns OK", KC_TPM_OK, kc_tpm_open(&tpm, &opts));
-    rc += expect_int("remove missing handler returns OK", KC_TPM_OK,
-        kc_tpm_on_signal(tpm, 1, NULL));
-    rc += expect_int("register signal handler returns OK", KC_TPM_OK,
-        kc_tpm_on_signal(tpm, 1, count_signal));
-    rc += expect_int("replace signal handler returns OK", KC_TPM_OK,
-        kc_tpm_on_signal(tpm, 1, count_signal_b));
-    rc += expect_int("raise replaced signal returns OK", KC_TPM_OK,
-        kc_tpm_raise_signal(tpm, 1));
-    rc += expect_int("old callback was not invoked", 0, signal_count);
-    rc += expect_int("replacement callback was invoked", 1, signal_count_b);
-    rc += expect_int("remove signal handler returns OK", KC_TPM_OK,
-        kc_tpm_on_signal(tpm, 1, NULL));
-    for (i = 0; i < 8; i++) {
-        rc += expect_int("register growth handler returns OK", KC_TPM_OK,
-            kc_tpm_on_signal(tpm, 200 + i, count_signal));
-    }
-    signal_count = 0;
-    rc += expect_int("raise growth handler returns OK", KC_TPM_OK,
-        kc_tpm_raise_signal(tpm, 207));
-    rc += expect_int("growth callback was invoked", 1, signal_count);
-    rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
-    return rc == 0 ? 0 : 1;
-}
-
-/**
- * Tests kc_tpm_raise_signal.
- * @return 0 on success, 1 on failure.
- */
-static int case_kc_tpm_raise_signal(void) {
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    int rc;
-
-    rc = 0;
-    opts = kc_tpm_options_default();
-    tpm = NULL;
-    signal_count = 0;
-    signal_ctx_seen = NULL;
-    rc += expect_int("raise_signal(NULL) returns ERROR", KC_TPM_ERROR,
-        kc_tpm_raise_signal(NULL, 1));
-    rc += expect_int("open returns OK", KC_TPM_OK, kc_tpm_open(&tpm, &opts));
-    rc += expect_int("raise unhandled signal returns ERROR", KC_TPM_ERROR,
-        kc_tpm_raise_signal(tpm, 1));
-    rc += expect_int("register signal handler returns OK", KC_TPM_OK,
-        kc_tpm_on_signal(tpm, 1, count_signal));
-    rc += expect_int("raise handled signal returns OK", KC_TPM_OK,
-        kc_tpm_raise_signal(tpm, 1));
-    rc += expect_int("signal callback was invoked", 1, signal_count);
-    rc += expect_true("signal callback received context", signal_ctx_seen == tpm);
-    rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
-    return rc == 0 ? 0 : 1;
-}
-
-/**
  * Tests kc_tpm_stop.
  * @return 0 on success, 1 on failure.
  */
@@ -260,79 +163,6 @@ static int case_kc_tpm_stop(void) {
     rc += expect_int("build after stop returns OK", KC_TPM_OK,
         kc_tpm_build(tpm, "test data", 2));
     rc += expect_score_range("score after stop remains valid", kc_tpm_score(tpm, "test"));
-    rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
-    return rc == 0 ? 0 : 1;
-}
-
-/**
- * Tests kc_tpm_listen_signals.
- * @return 0 on success, 1 on failure.
- */
-static int case_kc_tpm_listen_signals(void) {
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    int rc;
-
-    rc = 0;
-    opts = kc_tpm_options_default();
-    tpm = NULL;
-    rc += expect_int("listen_signals(NULL) returns ERROR", KC_TPM_ERROR,
-        kc_tpm_listen_signals(NULL));
-    rc += expect_int("open returns OK", KC_TPM_OK, kc_tpm_open(&tpm, &opts));
-    rc += expect_int("listen_signals(ctx) returns OK", KC_TPM_OK,
-        kc_tpm_listen_signals(tpm));
-    rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
-    return rc == 0 ? 0 : 1;
-}
-
-/**
- * Tests kc_tpm_listen_signal.
- * @return 0 on success, 1 on failure.
- */
-static int case_kc_tpm_listen_signal(void) {
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    int rc;
-
-    rc = 0;
-    opts = kc_tpm_options_default();
-    tpm = NULL;
-    rc += expect_int("listen_signal(NULL) returns ERROR", KC_TPM_ERROR,
-        kc_tpm_listen_signal(NULL, 1));
-    rc += expect_int("open returns OK", KC_TPM_OK, kc_tpm_open(&tpm, &opts));
-#ifdef _WIN32
-    rc += expect_int("listen_signal(ctx, 2) returns OK", KC_TPM_OK,
-        kc_tpm_listen_signal(tpm, 2));
-#else
-    rc += expect_int("listen_signal(ctx, SIGUSR1) returns OK", KC_TPM_OK,
-        kc_tpm_listen_signal(tpm, SIGUSR1));
-#endif
-    rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
-    return rc == 0 ? 0 : 1;
-}
-
-/**
- * Tests kc_tpm_signal_listener.
- * @return 0 on success, 1 on failure.
- */
-static int case_kc_tpm_signal_listener(void) {
-    kc_tpm_options_t opts;
-    kc_tpm_t *tpm;
-    int rc;
-
-    rc = 0;
-    opts = kc_tpm_options_default();
-    tpm = NULL;
-    signal_count = 0;
-    signal_ctx_seen = NULL;
-    rc += expect_int("open returns OK", KC_TPM_OK, kc_tpm_open(&tpm, &opts));
-    rc += expect_int("register listener handler returns OK", KC_TPM_OK,
-        kc_tpm_on_signal(tpm, 44, count_signal));
-    rc += expect_int("listen_signals(ctx) returns OK", KC_TPM_OK,
-        kc_tpm_listen_signals(tpm));
-    kc_tpm_signal_listener(44);
-    rc += expect_int("signal_listener dispatches callback", 1, signal_count);
-    rc += expect_true("signal_listener dispatches correct context", signal_ctx_seen == tpm);
     rc += expect_int("close(ctx) returns OK", KC_TPM_OK, kc_tpm_close(tpm));
     return rc == 0 ? 0 : 1;
 }
@@ -477,13 +307,8 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "kc_tpm_options_default") == 0) return case_kc_tpm_options_default();
     if (strcmp(argv[1], "kc_tpm_options_load_env") == 0) return case_kc_tpm_options_load_env();
     if (strcmp(argv[1], "kc_tpm_options_free") == 0) return case_kc_tpm_options_free();
-    if (strcmp(argv[1], "kc_tpm_on_signal") == 0) return case_kc_tpm_on_signal();
-    if (strcmp(argv[1], "kc_tpm_raise_signal") == 0) return case_kc_tpm_raise_signal();
     if (strcmp(argv[1], "kc_tpm_stop") == 0) return case_kc_tpm_stop();
     if (strcmp(argv[1], "kc_tpm_stop_requested") == 0) return case_kc_tpm_stop_requested();
-    if (strcmp(argv[1], "kc_tpm_listen_signals") == 0) return case_kc_tpm_listen_signals();
-    if (strcmp(argv[1], "kc_tpm_listen_signal") == 0) return case_kc_tpm_listen_signal();
-    if (strcmp(argv[1], "kc_tpm_signal_listener") == 0) return case_kc_tpm_signal_listener();
     if (strcmp(argv[1], "kc_tpm_open") == 0) return case_kc_tpm_open();
     if (strcmp(argv[1], "kc_tpm_build") == 0) return case_kc_tpm_build();
     if (strcmp(argv[1], "kc_tpm_score") == 0) return case_kc_tpm_score();

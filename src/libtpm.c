@@ -31,15 +31,6 @@
 #define KC_TPM_NG_MAX    8
 
 typedef struct {
-    int sig;
-    kc_tpm_signal_callback_t cb;
-} kc_tpm_signal_entry_t;
-
-static kc_tpm_t **g_signal_ctx_list = NULL;
-static int g_signal_ctx_cap = 0;
-static int g_signal_ctx_count = 0;
-
-typedef struct {
     char gram[12];
     int count;
 } kc_tpm_gram_t;
@@ -51,9 +42,6 @@ struct kc_tpm {
     int ngram_size;
 
     kc_tpm_options_t opts;
-    kc_tpm_signal_entry_t *signal_handlers;
-    int n_signal_handlers;
-    int signal_handlers_capacity;
     volatile sig_atomic_t stop_requested;
 };
 
@@ -343,16 +331,8 @@ double kc_tpm_score(kc_tpm_t *tpm, const char *input_text) {
  * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
  */
 int kc_tpm_close(kc_tpm_t *tpm) {
-    int i;
     if (!tpm) return KC_TPM_ERROR;
-    for (i = 0; i < g_signal_ctx_count; i++) {
-        if (g_signal_ctx_list[i] == tpm) {
-            g_signal_ctx_list[i] = g_signal_ctx_list[--g_signal_ctx_count];
-            break;
-        }
-    }
     kc_tpm_options_free(&tpm->opts);
-    free(tpm->signal_handlers);
     free(tpm);
     return KC_TPM_OK;
 }
@@ -405,125 +385,6 @@ int kc_tpm_stop(kc_tpm_t *tpm) {
 int kc_tpm_stop_requested(kc_tpm_t *tpm) {
     if (!tpm) return 0;
     return tpm->stop_requested ? 1 : 0;
-}
-
-/**
- * Register a handler for a library-level signal number.
- * @param tpm Context pointer.
- * @param sig Application-defined signal number.
- * @param cb Callback to invoke.
- * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
- */
-int kc_tpm_on_signal(kc_tpm_t *tpm, int sig, kc_tpm_signal_callback_t cb) {
-    int i;
-    if (!tpm) return KC_TPM_ERROR;
-    for (i = 0; i < tpm->n_signal_handlers; i++) {
-        if (tpm->signal_handlers[i].sig == sig) {
-            if (cb) {
-                tpm->signal_handlers[i].cb = cb;
-            } else {
-                int tail = tpm->n_signal_handlers - i - 1;
-                if (tail > 0) {
-                    memmove(&tpm->signal_handlers[i],
-                            &tpm->signal_handlers[i + 1],
-                            (size_t)tail * sizeof(kc_tpm_signal_entry_t));
-                }
-                tpm->n_signal_handlers--;
-            }
-            return KC_TPM_OK;
-        }
-    }
-    if (!cb) return KC_TPM_OK;
-    if (tpm->n_signal_handlers >= tpm->signal_handlers_capacity) {
-        int new_cap = tpm->signal_handlers_capacity ? tpm->signal_handlers_capacity * 2 : 4;
-        kc_tpm_signal_entry_t *p = (kc_tpm_signal_entry_t *)realloc(tpm->signal_handlers,
-            (size_t)new_cap * sizeof(kc_tpm_signal_entry_t));
-        if (!p) return KC_TPM_ERROR;
-        tpm->signal_handlers = p;
-        tpm->signal_handlers_capacity = new_cap;
-    }
-    tpm->signal_handlers[tpm->n_signal_handlers].sig = sig;
-    tpm->signal_handlers[tpm->n_signal_handlers].cb = cb;
-    tpm->n_signal_handlers++;
-    return KC_TPM_OK;
-}
-
-/**
- * Raise a library-level signal.
- * @param tpm Context pointer.
- * @param sig Signal number to raise.
- * @return KC_TPM_OK if handled, or KC_TPM_ERROR if no handler.
- */
-int kc_tpm_raise_signal(kc_tpm_t *tpm, int sig) {
-    int i;
-    if (!tpm) return KC_TPM_ERROR;
-    for (i = 0; i < tpm->n_signal_handlers; i++) {
-        if (tpm->signal_handlers[i].sig == sig) {
-            tpm->signal_handlers[i].cb(tpm);
-            return KC_TPM_OK;
-        }
-    }
-    return KC_TPM_ERROR;
-}
-
-/**
- * Set the internal signal-listener context.
- * @param tpm Context pointer.
- * @return KC_TPM_OK on success, or KC_TPM_ERROR if tpm is NULL.
- */
-int kc_tpm_listen_signals(kc_tpm_t *tpm) {
-    if (!tpm) return KC_TPM_ERROR;
-    if (g_signal_ctx_count >= g_signal_ctx_cap) {
-        int new_cap = g_signal_ctx_cap ? g_signal_ctx_cap * 2 : 4;
-        kc_tpm_t **new_list = (kc_tpm_t **)realloc(g_signal_ctx_list,
-            (size_t)new_cap * sizeof(kc_tpm_t *));
-        if (!new_list) return KC_TPM_ERROR;
-        g_signal_ctx_list = new_list;
-        g_signal_ctx_cap = new_cap;
-    }
-    g_signal_ctx_list[g_signal_ctx_count++] = tpm;
-    return KC_TPM_OK;
-}
-
-/**
- * Wire an OS signal to the library signal listener.
- * @param tpm Context pointer.
- * @param sig_id OS signal number.
- * @return KC_TPM_OK on success, or KC_TPM_ERROR on failure.
- */
-int kc_tpm_listen_signal(kc_tpm_t *tpm, int sig_id) {
-    if (!tpm) return KC_TPM_ERROR;
-    if (g_signal_ctx_count >= g_signal_ctx_cap) {
-        int new_cap = g_signal_ctx_cap ? g_signal_ctx_cap * 2 : 4;
-        kc_tpm_t **new_list = (kc_tpm_t **)realloc(g_signal_ctx_list,
-            (size_t)new_cap * sizeof(kc_tpm_t *));
-        if (!new_list) return KC_TPM_ERROR;
-        g_signal_ctx_list = new_list;
-        g_signal_ctx_cap = new_cap;
-    }
-    g_signal_ctx_list[g_signal_ctx_count++] = tpm;
-#ifdef _WIN32
-    (void)sig_id;
-#else
-    signal(sig_id, kc_tpm_signal_listener);
-#endif
-    return KC_TPM_OK;
-}
-
-/**
- * Generic signal-listener compatible with signal() / sigaction().
- * @param sig OS signal number.
- * @return None.
- */
-void kc_tpm_signal_listener(int sig) {
-    int i;
-    for (i = 0; i < g_signal_ctx_count; i++) {
-        if (g_signal_ctx_list[i] &&
-            kc_tpm_raise_signal(g_signal_ctx_list[i], sig) == 0)
-            return;
-    }
-    signal(sig, SIG_DFL);
-    raise(sig);
 }
 
 /**

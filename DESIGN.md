@@ -54,7 +54,7 @@ Invalid, unbuilt, empty, or over-capacity scoring returns `0.0`.
 text. Neither string is retained.
 
 Options currently reserve the common lifecycle shape but have no effective
-configuration fields. Contexts own callbacks and stop state.
+configuration fields. Contexts own stop state.
 
 ## CLI
 

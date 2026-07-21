@@ -127,11 +127,6 @@ typedef struct kc_tpm kc_tpm_t;
 | `kc_tpm_score(tpm, input_text)` | `double` | Score input text against the built profile. Returns 0.0–1.0. |
 | `kc_tpm_stop(tpm)` | `int` | Request stop for a context. |
 | `kc_tpm_stop_requested(tpm)` | `int` | Return whether stop was requested on the context. |
-| `kc_tpm_on_signal(tpm, sig, cb)` | `int` | Register, replace, or remove a signal callback. |
-| `kc_tpm_raise_signal(tpm, sig)` | `int` | Raise a library-level signal. |
-| `kc_tpm_listen_signals(tpm)` | `int` | Add a context to the signal listener list. |
-| `kc_tpm_listen_signal(tpm, sig_id)` | `int` | Register an OS signal listener for a context. |
-| `kc_tpm_signal_listener(sig)` | `void` | Dispatch an OS signal to registered contexts. |
 | `kc_tpm_close(tpm)` | `int` | Free the context. |
 | `kc_tpm_version(void)` | `uint64_t` | Return the build version timestamp. |
 

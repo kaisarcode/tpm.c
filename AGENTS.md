@@ -59,7 +59,7 @@ the logistic constants changes all scores.
 
 Treat `src/libtpm.h` as a compatibility boundary.
 
-Contexts own fixed profile storage, scalar options, callbacks, and stop state.
+Contexts own fixed profile storage, scalar options, and stop state.
 Map and input strings are borrowed only during calls. `kc_tpm_build()` replaces
 the current profile. `kc_tpm_score()` returns zero for invalid, unbuilt, empty,
 or overflow cases rather than allocating an error object.
@@ -120,11 +120,9 @@ hidden truncation, cache, database, network, or background work.
 
 Do not replace visible limits with unbounded allocations by default.
 
-## Signals and Concurrency
+## Concurrency
 
-Callbacks and stop state are context-local. The global list only bridges OS
-signals. Profile build and scoring do not promise concurrent mutation of one
-context.
+Profile build and scoring do not promise concurrent mutation of one context.
 
 Do not expand lifecycle support into process supervision.
 

@@ -27,14 +27,9 @@ typedef struct {
     int reserved;
 } kc_tpm_options_t;
 
-typedef void (*kc_tpm_signal_callback_t)(kc_tpm_t *tpm);
-
 kc_tpm_options_t kc_tpm_options_default(void);
 void kc_tpm_options_load_env(kc_tpm_options_t *opts);
 void kc_tpm_options_free(kc_tpm_options_t *opts);
-
-int kc_tpm_on_signal(kc_tpm_t *tpm, int sig, kc_tpm_signal_callback_t cb);
-int kc_tpm_raise_signal(kc_tpm_t *tpm, int sig);
 
 /**
  * Request stop for a specific tpm context.
@@ -49,10 +44,6 @@ int kc_tpm_stop(kc_tpm_t *tpm);
  * @return 1 if stop was requested, or 0 otherwise.
  */
 int kc_tpm_stop_requested(kc_tpm_t *tpm);
-
-int kc_tpm_listen_signals(kc_tpm_t *tpm);
-int kc_tpm_listen_signal(kc_tpm_t *tpm, int sig_id);
-void kc_tpm_signal_listener(int sig);
 
 /**
  * Allocate and initialize a new tpm context.
